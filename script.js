@@ -228,12 +228,15 @@
             video.loop = true;
             video.playsInline = true;
             video.autoplay = true;
+            video.preload = 'metadata';
             video.setAttribute('aria-hidden', 'true');
             tile.appendChild(video);
           } else {
             var img = document.createElement('img');
             img.src = item.url;
             img.alt = '';
+            img.loading = 'lazy';
+            img.decoding = 'async';
             img.setAttribute('aria-hidden', 'true');
             tile.appendChild(img);
           }
@@ -245,10 +248,13 @@
     }
   }
 
-  function waitForMedia() {
+  function waitForFirstMedia(maxWait) {
     var nodes = document.querySelectorAll('.bg-grid img, .bg-grid video');
     if (nodes.length === 0) return Promise.resolve();
-    return Promise.all(Array.prototype.map.call(nodes, function (el) {
+    var columnCount = getColumnCount();
+    var firstBatchSize = Math.min(columnCount * 4, nodes.length);
+    var firstBatch = Array.prototype.slice.call(nodes, 0, firstBatchSize);
+    var waitAll = Promise.all(firstBatch.map(function (el) {
       return new Promise(function (resolve) {
         if (el.tagName === 'IMG') {
           if (el.complete && el.naturalWidth) return resolve();
@@ -261,6 +267,8 @@
         }
       });
     }));
+    var timeout = new Promise(function (r) { setTimeout(r, maxWait); });
+    return Promise.race([waitAll, timeout]);
   }
 
   function showPage() {
@@ -269,10 +277,7 @@
 
   if (mediaData.length > 0 && columns.length > 0) {
     buildMediaGrid();
-    Promise.race([
-      waitForMedia(),
-      new Promise(function (r) { setTimeout(r, 12000); })
-    ]).then(showPage);
+    waitForFirstMedia(6000).then(showPage);
     var lastColumnCount = getColumnCount();
     window.addEventListener('resize', function () {
       var n = getColumnCount();
